@@ -2,12 +2,12 @@
 - name: Deploy WAR to Apache Tomcat
   hosts: app1
   become: yes
+
   vars:
     tomcat_version: 11.0.6
-    tomcat_download_url: "https://downloads.apache.org/tomcat/tomcat-11/v{{ tomcat_version }}/bin/apache-tomcat-{{ tomcat_version }}-deployer.tar.gz"
+    tomcat_download_url: https://downloads.apache.org/tomcat/tomcat-11/v11.0.6/bin/apache-tomcat-11.0.6-deployer.tar.gz
     tomcat_install_dir: /opt/tomcat
-    war_file_url: "http://18.234.234.170:8081/repository/dobretech-re/com/example/myapp/1.0/myapp-1.0.war"
-    war_file_name: myapp.war
+    war_file_path: /home/ubuntu/ansible/maven-web-pro1/target/maven-web-pro1.war
 
   tasks:
     - name: Install required packages
@@ -15,10 +15,12 @@
         name: default-jdk
         state: present
         update_cache: yes
+      tags: deploy
 
     - name: Create Tomcat group
       group:
         name: tomcat
+      tags: deploy
 
     - name: Create Tomcat user
       user:
@@ -27,50 +29,43 @@
         home: "{{ tomcat_install_dir }}"
         shell: /bin/false
         system: yes
+      tags: deploy
 
     - name: Ensure Tomcat install directory exists
       file:
         path: "{{ tomcat_install_dir }}"
         state: directory
+        owner: tomcat
+        group: tomcat
         mode: '0755'
+      tags: deploy
 
-    - name: Download Tomcat
-      get_url:
-        url: "{{ tomcat_download_url }}"
-        dest: /tmp/apache-tomcat.tar.gz
-
-    - name: Extract Tomcat archive
+    - name: Download and extract Tomcat
       unarchive:
-        src: /tmp/apache-tomcat.tar.gz
+        src: "{{ tomcat_download_url }}"
         dest: "{{ tomcat_install_dir }}"
         remote_src: yes
         extra_opts: [--strip-components=1]
+      tags: deploy
 
-    - name: Set permissions
-      file:
-        path: "{{ tomcat_install_dir }}"
+    - name: Deploy WAR file to Tomcat webapps directory
+      copy:
+        src: "{{ war_file_path }}"
+        dest: "{{ tomcat_install_dir }}/webapps/maven-web-pro1.war"
         owner: tomcat
         group: tomcat
-        recurse: yes
-
-    - name: Deploy WAR file
-      get_url:
-        url: "{{ war_file_url }}"
-        dest: "{{ tomcat_install_dir }}/webapps/{{ war_file_name }}"
         mode: '0644'
+      tags: deploy
 
-    - name: Set JAVA_HOME for Tomcat
-      lineinfile:
-        path: /etc/environment
-        line: 'JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64'
-        create: yes
-        state: present
-
-    - name: Reload environment
-      shell: source /etc/environment
-      args:
-        executable: /bin/bash
+    - name: Ensure execute permissions on Tomcat scripts
+      file:
+        path: "{{ tomcat_install_dir }}/bin"
+        recurse: yes
+        mode: '0755'
+      tags: deploy
 
     - name: Start Tomcat
       shell: "{{ tomcat_install_dir }}/bin/startup.sh"
-      become_user: tomcat
+      args:
+        chdir: "{{ tomcat_install_dir }}/bin"
+      tags: deploy
