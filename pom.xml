@@ -16,9 +16,9 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>11</maven.compiler.source>
 	<maven.compiler.target>11</maven.compiler.target>
-	<sonar.login>admin</sonar.login>
-        <sonar.password>Dobre12345</sonar.password>
-        <sonar.host.url>http://3.89.104.240:9000/</sonar.host.url>
+	<sonar.login>sonar</sonar.login>
+        <sonar.password>Fatherlanddon12.</sonar.password>
+        <sonar.host.url>http://51.20.91.167:9000/</sonar.host.url>
 </properties>
 
     <dependencies>
@@ -64,11 +64,11 @@
 <distributionManagement>
         <repository>
             <id>nexus</id>
-            <url>http://18.207.122.15:8081/repository/dobretech-fe/</url>
+            <url>http://16.16.187.133:8081/repository/dobretech-re/</url>
         </repository>
         <snapshotRepository>
             <id>nexus</id>
-            <url>http://18.207.122.15:8081/repository/dobretech-fe-snap/</url>
+            <url>http://16.16.187.133:8081/repository/dobretech-snap/</url>
         </snapshotRepository>
     </distributionManagement>
 
