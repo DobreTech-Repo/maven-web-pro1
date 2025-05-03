@@ -8,6 +8,7 @@
     tomcat_user: "tomcat"
     tomcat_group: "tomcat"
     tomcat_install_dir: "/opt/tomcat"
+    tomcat_url: "https://archive.apache.org/dist/tomcat/tomcat-{{ tomcat_major }}/v{{ tomcat_version }}/bin/apache-tomcat-{{ tomcat_version }}.tar.gz"
     nexus_war_url: "http://16.16.187.133:8081/repository/dobretech-re/com/example/myapp/1.0/myapp-1.0.war"
     war_file_name: "myapp-1.0.war"
 
@@ -35,9 +36,9 @@
         create_home: no
         system: yes
 
-    - name: Download and extract Tomcat
+    - name: Download Tomcat
       get_url:
-        url: "https://archive.apache.org/dist/tomcat/tomcat-{{ tomcat_major }}/v{{ tomcat_version }}/bin/apache-tomcat-{{ tomcat_version }}.tar.gz"
+        url: "{{ tomcat_url }}"
         dest: /tmp/tomcat.tar.gz
         mode: '0644'
 
@@ -54,15 +55,25 @@
         src: /tmp/tomcat.tar.gz
         dest: "{{ tomcat_install_dir }}"
         remote_src: yes
+        creates: "{{ tomcat_install_dir }}/apache-tomcat-{{ tomcat_version }}"
 
-    - name: Create symlink to Tomcat version directory
+    - name: Set correct permissions
+      file:
+        path: "{{ tomcat_install_dir }}/apache-tomcat-{{ tomcat_version }}"
+        state: directory
+        recurse: yes
+        owner: "{{ tomcat_user }}"
+        group: "{{ tomcat_group }}"
+
+    - name: Create symlink to Tomcat
       file:
         src: "{{ tomcat_install_dir }}/apache-tomcat-{{ tomcat_version }}"
         dest: "{{ tomcat_install_dir }}/latest"
         state: link
         force: yes
 
-    - name: Ensure webapps directory exists
+    # Ensure webapps directory exists
+    - name: Ensure Tomcat webapps directory exists
       file:
         path: "{{ tomcat_install_dir }}/latest/webapps"
         state: directory
@@ -79,7 +90,37 @@
         group: "{{ tomcat_group }}"
       tags: deploy
 
-    - name: Start Tomcat service
+    - name: Create Tomcat systemd service
+      copy:
+        dest: /etc/systemd/system/tomcat.service
+        content: |
+          [Unit]
+          Description=Apache Tomcat Web Application Container
+          After=network.target
+
+          [Service]
+          Type=forking
+
+          User={{ tomcat_user }}
+          Group={{ tomcat_group }}
+
+          Environment="JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64"
+          Environment="CATALINA_PID={{ tomcat_install_dir }}/latest/temp/tomcat.pid"
+          Environment="CATALINA_HOME={{ tomcat_install_dir }}/latest"
+          Environment="CATALINA_BASE={{ tomcat_install_dir }}/latest"
+          Environment="CATALINA_OPTS=-Xms512M -Xmx1024M -server -XX:+UseParallelGC"
+
+          ExecStart={{ tomcat_install_dir }}/latest/bin/startup.sh
+          ExecStop={{ tomcat_install_dir }}/latest/bin/shutdown.sh
+
+          Restart=always
+
+          [Install]
+          WantedBy=multi-user.target
+      notify:
+        - Reload systemd
+
+    - name: Ensure Tomcat is started and enabled
       systemd:
         name: tomcat
         enabled: yes
