@@ -8,7 +8,7 @@
     tomcat_user: "tomcat"
     tomcat_group: "tomcat"
     tomcat_install_dir: "/opt/tomcat"
-    nexus_war_url: "http://16.16.187.133:8081/repository/dobretech-fe/com/example/myapp/1.0/myapp-1.0.war"
+    nexus_war_url: "http://16.16.187.133:8081/repository/dobretech-re/com/example/myapp/1.0/myapp-1.0.war"
     war_file_name: "myapp-1.0.war"
 
   tasks:
