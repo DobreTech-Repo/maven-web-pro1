@@ -1,5 +1,5 @@
 - name: Deploy WAR to Apache Tomcat 
-  hosts: app
+  hosts: app_server
   become: yes
 
   vars:
