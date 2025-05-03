@@ -72,14 +72,15 @@
         state: link
         force: yes
 
-    # Ensure webapps directory exists with correct permissions
-    - name: Ensure Tomcat webapps directory exists
-      file:
-        path: "{{ tomcat_install_dir }}/latest/webapps"
-        state: directory
-        owner: "{{ tomcat_user }}"
-        group: "{{ tomcat_group }}"
-        mode: '0755'
+- name: Ensure Tomcat webapps directory exists
+  file:
+    path: "{{ tomcat_install_dir }}/latest/webapps"
+    state: directory
+    owner: "{{ tomcat_user }}"
+    group: "{{ tomcat_group }}"
+    mode: '0755'
+  tags: deploy
+
 
     - name: Check if webapps directory exists (debugging)
       stat:
