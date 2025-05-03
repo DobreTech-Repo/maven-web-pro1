@@ -1,17 +1,19 @@
 ---
 - name: Deploy WAR to Apache Tomcat
-  hosts: app1
+  hosts: app_server
   become: yes
 
   vars:
-    tomcat_version: 11.0.6
+    tomcat_version: 9.0.85
     tomcat_user: tomcat
     tomcat_group: tomcat
     install_dir: /opt/tomcat
     java_home: /usr/lib/jvm/java-17-openjdk-amd64
+    tomcat_service: tomcat
+    war_url: http://18.234.234.170:8081/repository/dobretech-re/com/example/myapp/1.0/myapp-1.0.war
+    war_name: myapp.war
 
   tasks:
-
     - name: Install required packages
       apt:
         name:
@@ -20,40 +22,46 @@
           - unzip
         state: present
         update_cache: yes
+      tags: deploy
 
     - name: Create Tomcat group
       group:
         name: "{{ tomcat_group }}"
         state: present
+      tags: deploy
 
     - name: Create Tomcat user
       user:
         name: "{{ tomcat_user }}"
         group: "{{ tomcat_group }}"
         shell: /bin/false
-        create_home: no
         system: yes
+      tags: deploy
 
     - name: Ensure Tomcat install directory exists
       file:
         path: "{{ install_dir }}"
         state: directory
-        owner: "{{ tomcat_user }}"
-        group: "{{ tomcat_group }}"
+        owner: root
+        group: root
+        mode: '0755'
+      tags: deploy
 
     - name: Download and extract Tomcat
       unarchive:
-        src: "https://downloads.apache.org/tomcat/tomcat-11/v{{ tomcat_version }}/bin/apache-tomcat-{{ tomcat_version }}.tar.gz"
+        src: "https://downloads.apache.org/tomcat/tomcat-9/v{{ tomcat_version }}/bin/apache-tomcat-{{ tomcat_version }}.tar.gz"
         dest: "{{ install_dir }}"
         remote_src: yes
         creates: "{{ install_dir }}/apache-tomcat-{{ tomcat_version }}"
+      tags: deploy
 
-    - name: Symlink to latest Tomcat
+    - name: Symlink latest
       file:
         src: "{{ install_dir }}/apache-tomcat-{{ tomcat_version }}"
         dest: "{{ install_dir }}/latest"
         state: link
         force: yes
+      tags: deploy
 
     - name: Change ownership of Tomcat directory
       file:
@@ -62,8 +70,16 @@
         recurse: yes
         owner: "{{ tomcat_user }}"
         group: "{{ tomcat_group }}"
+      tags: deploy
 
-    - name: Ensure Tomcat systemd service file exists
+    - name: Set JAVA_HOME in environment
+      copy:
+        dest: /etc/environment
+        content: |
+          JAVA_HOME={{ java_home }}
+      tags: deploy
+
+    - name: Create Tomcat systemd service file
       copy:
         dest: /etc/systemd/system/tomcat.service
         content: |
@@ -73,12 +89,15 @@
 
           [Service]
           Type=forking
+
           Environment=JAVA_HOME={{ java_home }}
           Environment=CATALINA_PID={{ install_dir }}/latest/temp/tomcat.pid
           Environment=CATALINA_HOME={{ install_dir }}/latest
           Environment=CATALINA_BASE={{ install_dir }}/latest
+
           ExecStart={{ install_dir }}/latest/bin/startup.sh
           ExecStop={{ install_dir }}/latest/bin/shutdown.sh
+
           User={{ tomcat_user }}
           Group={{ tomcat_group }}
           UMask=0007
@@ -87,16 +106,22 @@
 
           [Install]
           WantedBy=multi-user.target
-      notify: Reload systemd
+      tags: deploy
+
+    - name: Reload systemd daemon
+      shell: systemctl daemon-reexec && systemctl daemon-reload
+      tags: deploy
 
     - name: Ensure Tomcat is started and enabled
       systemd:
         name: tomcat
         enabled: yes
         state: started
-        daemon_reload: yes
+      tags: deploy
 
-  handlers:
-    - name: Reload systemd
-      systemd:
-        daemon_reload: yes
+    - name: Download WAR file
+      get_url:
+        url: "{{ war_url }}"
+        dest: "{{ install_dir }}/latest/webapps/{{ war_name }}"
+        mode: '0644'
+      tags: deploy
