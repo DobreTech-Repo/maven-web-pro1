@@ -37,7 +37,7 @@
 
     - name: Download and extract Tomcat
       unarchive:
-        src: "https://downloads.apache.org/tomcat/tomcat-9/v{{ tomcat_version }}/bin/apache-tomcat-{{ tomcat_version }}.tar.gz"
+        src: "https://downloads.apache.org/tomcat/tomcat-11/v{{ tomcat_version }}/bin/apache-tomcat-{{ tomcat_version }}.tar.gz"
         dest: "{{ tomcat_install_dir }}"
         remote_src: yes
         extra_opts: [--strip-components=1]
