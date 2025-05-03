@@ -57,7 +57,7 @@
         remote_src: yes
         creates: "{{ tomcat_install_dir }}/apache-tomcat-{{ tomcat_version }}"
 
-    - name: Set correct permissions for Tomcat
+    - name: Set correct permissions
       file:
         path: "{{ tomcat_install_dir }}/apache-tomcat-{{ tomcat_version }}"
         state: directory
@@ -72,24 +72,14 @@
         state: link
         force: yes
 
-- name: Ensure Tomcat webapps directory exists
-  file:
-    path: "{{ tomcat_install_dir }}/latest/webapps"
-    state: directory
-    owner: "{{ tomcat_user }}"
-    group: "{{ tomcat_group }}"
-    mode: '0755'
-  tags: deploy
-
-
-    - name: Check if webapps directory exists (debugging)
-      stat:
+    - name: Ensure Tomcat webapps directory exists
+      file:
         path: "{{ tomcat_install_dir }}/latest/webapps"
-      register: webapps_stat
-
-    - name: Debug webapps directory status
-      debug:
-        msg: "The webapps directory exists: {{ webapps_stat.stat.exists }}"
+        state: directory
+        owner: "{{ tomcat_user }}"
+        group: "{{ tomcat_group }}"
+        mode: '0755'
+      tags: deploy
 
     - name: Download WAR file from Nexus
       get_url:
