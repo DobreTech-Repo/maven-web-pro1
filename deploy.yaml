@@ -72,6 +72,14 @@
         state: link
         force: yes
 
+    - name: Ensure webapps directory exists
+      file:
+        path: "{{ tomcat_install_dir }}/latest/webapps"
+        state: directory
+        owner: "{{ tomcat_user }}"
+        group: "{{ tomcat_group }}"
+        mode: '0755'
+
     - name: Download WAR file from Nexus
       get_url:
         url: "{{ nexus_war_url }}"
