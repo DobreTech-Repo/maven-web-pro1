@@ -1,4 +1,4 @@
-- name: Deploy WAR to Apache Tomcat 
+- name: Deploy WAR to Apache Tomcat
   hosts: app_server
   become: yes
 
@@ -79,6 +79,7 @@
         owner: "{{ tomcat_user }}"
         group: "{{ tomcat_group }}"
         mode: '0755'
+      tags: deploy
 
     - name: Download WAR file from Nexus
       get_url:
