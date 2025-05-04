@@ -48,6 +48,15 @@
         extra_opts: [--strip-components=1]
       tags: deploy
 
+    - name: Ensure Tomcat webapps directory exists
+      file:
+        path: "{{ tomcat_install_dir }}/webapps"
+        state: directory
+        owner: tomcat
+        group: tomcat
+        mode: '0755'
+      tags: deploy
+
     - name: Deploy WAR file to Tomcat webapps directory
       copy:
         src: "{{ war_file_path }}"
