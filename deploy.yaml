@@ -1,89 +1,123 @@
-- name: Deploy WAR to Apache Tomcat
-  hosts: app_server
+- name: Deploy WAR to Apache Tomcat 
+  hosts: app
   become: yes
+
   vars:
-    tomcat_version: 11.0.6
-    tomcat_download_url: https://downloads.apache.org/tomcat/tomcat-11/v11.0.6/bin/apache-tomcat-11.0.6-deployer.tar.gz
-    tomcat_install_dir: /opt/tomcat
-    war_file_path: /var/lib/jenkins/workspace/DevOps/target/myapp.war
-    local_war_path: "/tmp/myapp.war"  # Local temp file path for the WAR
+    tomcat_major: "9"
+    tomcat_version: "9.0.87"
+    tomcat_user: "tomcat"
+    tomcat_group: "tomcat"
+    tomcat_install_dir: "/opt/tomcat"
+    tomcat_url: "https://archive.apache.org/dist/tomcat/tomcat-{{ tomcat_major }}/v{{ tomcat_version }}/bin/apache-tomcat-{{ tomcat_version }}.tar.gz"
+    nexus_war_url: "http://16.16.187.133:8081/repository/dobretech-re/com/example/myapp/1.0/myapp-1.0.war"
+    war_file_name: "myapp-1.0.war"
 
   tasks:
-    - name: Install required packages
+    - name: Ensure required apt packages are installed
       apt:
-        name: default-jdk
+        name:
+          - openjdk-11-jdk
+          - curl
+          - wget
+          - unzip
         state: present
         update_cache: yes
-      tags: deploy
 
     - name: Create Tomcat group
       group:
-        name: tomcat
-      tags: deploy
+        name: "{{ tomcat_group }}"
+        state: present
 
     - name: Create Tomcat user
       user:
-        name: tomcat
-        group: tomcat
-        home: "{{ tomcat_install_dir }}"
+        name: "{{ tomcat_user }}"
+        group: "{{ tomcat_group }}"
         shell: /bin/false
+        create_home: no
         system: yes
-      tags: deploy
 
-    - name: Ensure Tomcat install directory exists
+    - name: Download Tomcat
+      get_url:
+        url: "{{ tomcat_url }}"
+        dest: /tmp/tomcat.tar.gz
+        mode: '0644'
+
+    - name: Create Tomcat installation directory
       file:
         path: "{{ tomcat_install_dir }}"
         state: directory
-        owner: tomcat
-        group: tomcat
+        owner: root
+        group: root
         mode: '0755'
-      tags: deploy
 
-    - name: Download and extract Tomcat
+    - name: Extract Tomcat
       unarchive:
-        src: "{{ tomcat_download_url }}"
+        src: /tmp/tomcat.tar.gz
         dest: "{{ tomcat_install_dir }}"
         remote_src: yes
-        extra_opts: [--strip-components=1]
-      tags: deploy
+        creates: "{{ tomcat_install_dir }}/apache-tomcat-{{ tomcat_version }}"
 
-    - name: Ensure Tomcat webapps directory exists
+    - name: Set correct permissions
       file:
-        path: "{{ tomcat_install_dir }}/webapps"
+        path: "{{ tomcat_install_dir }}/apache-tomcat-{{ tomcat_version }}"
         state: directory
-        owner: tomcat
-        group: tomcat
-        mode: '0755'
-      tags: deploy
-
-    # Fetch the WAR file from Jenkins to local machine
-    - name: Fetch WAR file from Jenkins
-      fetch:
-        src: "{{ war_file_path }}"
-        dest: "{{ local_war_path }}"
-        flat: yes
-      delegate_to: localhost
-      tags: deploy
-
-    # Copy the WAR file from the local machine to the Tomcat webapps directory
-    - name: Copy WAR file to Tomcat
-      copy:
-        src: "{{ local_war_path }}"
-        dest: "{{ tomcat_install_dir }}/webapps/maven-web-pro1.war"
-        owner: tomcat
-        group: tomcat
-        mode: '0644'
-      tags: deploy
-
-    - name: Ensure execute permissions on Tomcat scripts
-      file:
-        path: "{{ tomcat_install_dir }}/bin"
         recurse: yes
-        mode: '0755'
+        owner: "{{ tomcat_user }}"
+        group: "{{ tomcat_group }}"
+
+    - name: Create symlink to Tomcat
+      file:
+        src: "{{ tomcat_install_dir }}/apache-tomcat-{{ tomcat_version }}"
+        dest: "{{ tomcat_install_dir }}/latest"
+        state: link
+        force: yes
+
+    - name: Download WAR file from Nexus
+      get_url:
+        url: "{{ nexus_war_url }}"
+        dest: "{{ tomcat_install_dir }}/latest/webapps/{{ war_file_name }}"
+        mode: '0644'
+        owner: "{{ tomcat_user }}"
+        group: "{{ tomcat_group }}"
       tags: deploy
 
-    - name: Start Tomcat
-      shell: "{{ tomcat_install_dir }}/bin/startup.sh"
-      args:
-        chdir: "{{ tomcat_install_dir }}/bin"
+    - name: Create Tomcat systemd service
+      copy:
+        dest: /etc/systemd/system/tomcat.service
+        content: |
+          [Unit]
+          Description=Apache Tomcat Web Application Container
+          After=network.target
+
+          [Service]
+          Type=forking
+
+          User={{ tomcat_user }}
+          Group={{ tomcat_group }}
+
+          Environment="JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64"
+          Environment="CATALINA_PID={{ tomcat_install_dir }}/latest/temp/tomcat.pid"
+          Environment="CATALINA_HOME={{ tomcat_install_dir }}/latest"
+          Environment="CATALINA_BASE={{ tomcat_install_dir }}/latest"
+          Environment="CATALINA_OPTS=-Xms512M -Xmx1024M -server -XX:+UseParallelGC"
+
+          ExecStart={{ tomcat_install_dir }}/latest/bin/startup.sh
+          ExecStop={{ tomcat_install_dir }}/latest/bin/shutdown.sh
+
+          Restart=always
+
+          [Install]
+          WantedBy=multi-user.target
+      notify:
+        - Reload systemd
+
+    - name: Ensure Tomcat is started and enabled
+      systemd:
+        name: tomcat
+        enabled: yes
+        state: started
       tags: deploy
+
+  handlers:
+    - name: Reload systemd
+      command: systemctl daemon-reexec
