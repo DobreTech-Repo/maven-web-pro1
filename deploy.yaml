@@ -1,6 +1,6 @@
 ---
 - name: Deploy WAR to Apache Tomcat
-  hosts: app1
+  hosts: app_server
   become: yes
   vars:
     tomcat_version: 11.0.6
