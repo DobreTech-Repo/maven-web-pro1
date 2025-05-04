@@ -6,6 +6,7 @@
     tomcat_download_url: https://downloads.apache.org/tomcat/tomcat-11/v11.0.6/bin/apache-tomcat-11.0.6-deployer.tar.gz
     tomcat_install_dir: /opt/tomcat
     war_file_path: /var/lib/jenkins/workspace/DevOps/target/myapp.war
+    local_war_path: "/tmp/myapp.war"  # Local temp file path for the WAR
 
   tasks:
     - name: Install required packages
@@ -55,17 +56,19 @@
         mode: '0755'
       tags: deploy
 
+    # Fetch the WAR file from Jenkins to local machine
     - name: Fetch WAR file from Jenkins
       fetch:
         src: "{{ war_file_path }}"
-        dest: "/tmp/myapp.war"
+        dest: "{{ local_war_path }}"
         flat: yes
       delegate_to: localhost
       tags: deploy
 
+    # Copy the WAR file from the local machine to the Tomcat webapps directory
     - name: Copy WAR file to Tomcat
       copy:
-        src: "/tmp/myapp.war"
+        src: "{{ local_war_path }}"
         dest: "{{ tomcat_install_dir }}/webapps/maven-web-pro1.war"
         owner: tomcat
         group: tomcat
