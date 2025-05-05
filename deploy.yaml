@@ -80,6 +80,40 @@
         mode: '0644'
         timeout: 30
 
+    - name: Download JMX Prometheus Java Agent
+      get_url:
+        url: "https://repo1.maven.org/maven2/io/prometheus/jmx/jmx_prometheus_javaagent/0.20.0/jmx_prometheus_javaagent-0.20.0.jar"
+        dest: "{{ tomcat_install_dir }}/jmx_prometheus_javaagent-0.20.0.jar"
+        mode: '0644'
+
+    - name: Create JMX Exporter config file
+      copy:
+        dest: "{{ tomcat_install_dir }}/jmx_exporter_config.yaml"
+        content: |
+          startDelaySeconds: 0
+          rules:
+            - pattern: 'java.lang:type=MemoryPool,name=(.*)'
+              name: jvm_memory_pool_usage_bytes
+              labels:
+                pool: "$1"
+              type: GAUGE
+            - pattern: 'java.lang:type=OperatingSystem'
+              name: jvm_system_cpu
+              type: GAUGE
+            - pattern: 'java.lang:type=Threading'
+              name: jvm_threads
+              type: GAUGE
+
+    - name: Set ownership of JMX files
+      file:
+        path: "{{ item }}"
+        owner: "{{ tomcat_user }}"
+        group: "{{ tomcat_group }}"
+        mode: '0644'
+      loop:
+        - "{{ tomcat_install_dir }}/jmx_exporter_config.yaml"
+        - "{{ tomcat_install_dir }}/jmx_prometheus_javaagent-0.20.0.jar"
+
     - name: Create Tomcat systemd service
       copy:
         dest: /etc/systemd/system/tomcat.service
@@ -95,7 +129,7 @@
           Environment=CATALINA_PID={{ tomcat_symlink }}/temp/tomcat.pid
           Environment=CATALINA_HOME={{ tomcat_symlink }}
           Environment=CATALINA_BASE={{ tomcat_symlink }}
-          Environment='CATALINA_OPTS=-Xms512M -Xmx1024M -server -XX:+UseParallelGC'
+          Environment='CATALINA_OPTS=-Xms512M -Xmx1024M -server -XX:+UseParallelGC -javaagent:{{ tomcat_install_dir }}/jmx_prometheus_javaagent-0.20.0.jar=7070:{{ tomcat_install_dir }}/jmx_exporter_config.yaml'
 
           ExecStart={{ tomcat_symlink }}/bin/startup.sh
           ExecStop={{ tomcat_symlink }}/bin/shutdown.sh
